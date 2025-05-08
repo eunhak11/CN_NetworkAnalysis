@@ -3,7 +3,11 @@
 
 **5-Layer Internet Protocol**의 패킷 분석을 위한 끝말잇기 게임 서버 구축
 
-##### 기술 스택: 
+##### 프로젝트 기간: 25.04.28~25.05.26
+
+<br>
+
+## 📚 기술 스택
 
  <img src="https://img.shields.io/badge/flask-000000?style=for-the-badge&logo=flask&logoColor=white"> <img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white"> <img src="https://img.shields.io/badge/html5-E34F26?style=for-the-badge&logo=html5&logoColor=white"> 
   <img src="https://img.shields.io/badge/css-1572B6?style=for-the-badge&logo=css3&logoColor=white"> 
@@ -11,11 +15,7 @@
 
 <img src="https://img.shields.io/badge/git-F05032?style=for-the-badge&logo=git&logoColor=white"> <img src="https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white"> <img src="https://img.shields.io/badge/wireshark-1679A7?style=for-the-badge&logo=socket.io&logoColor=#1679A7">
 
-
-
-##### 프로젝트 기간: 
-25.04.28~25.05.26
-
+<br><br>
 
 ## 😎 팀원 소개
 
@@ -27,7 +27,8 @@
 | [Github : cjh30808](https://github.com/cjh030808) | [Github : DLseokJin](https://github.com/DlSeokJin) | [Github : eunhak11](https://github.com/eunhak11) |
 
 <u>***최차봉의 아이들 Let's Go***</u>
- 
+
+ <br><br>
 
 ## 💻 서버 및 동작 개요
 본 프로젝트는 Python을 활용한 실시간 끝말잇기 게임을 구현하며, TCP 서버, TCP 클라이언트, Flask 서버로 구성된다.
