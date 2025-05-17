@@ -17,12 +17,13 @@ def receive_messages(clientSocket):
                 break
             
             server_said = modifiedSentence.decode()
-            if server_said == "TURN":
-                my_turn = True
-                print("Player의 차례")
-            else:
-                print(f"\n[상대방]: {server_said}")
-                game_over = True
+#            if server_said == "TURN":
+#                my_turn = True
+#                print("Player의 차례")
+#            else:
+            print(f"\n[서버]: {server_said}")
+            my_turn = True          #추가
+#            game_over = True
 
         except:
             print("서버 통신 오류")
@@ -49,7 +50,7 @@ def main():
     try:
         while not game_over:
             if my_turn:
-                sentence = input("단어를 입력하세요(제한시간 10초): (기권하려면 0)").strip()
+                sentence = input().strip()
                 if sentence == '0':
                     clientSocket.send("GiveUp".encode())
                     game_over = True
