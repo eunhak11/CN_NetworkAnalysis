@@ -1,52 +1,25 @@
-// Create Socket Instance
-const socket = io("http://localhost:5500/chat?username=jojo");
+const socket = io();
 
-// On Event, Wait for 'connect' emit.
-socket.on("connect", ()=>{
-  console.log("[connect]");
+// 메시지 받기
+socket.on("receive_message", ({ username, message }) => {
+  const ul = document.querySelector(".chat-msg-list");
+  const li = document.createElement("li");
+  li.textContent = `${username}: ${message}`;
+  ul.appendChild(li);
 });
 
-// On Event, Wait for 'disconnect' emit.
-socket.on("disconnect", ()=>{
-  console.log("[disconnect]");
-});
+// 메시지 보내기
+const form = document.getElementById("message_form");
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = form.querySelector("input[name='message']");
+  const msg = input.value.trim();
+  if (!msg) return;
 
-// On Event, Wait for 'receive_message' emit.
-socket.on("receive_message", ({ username, message })=>{
-  const text = [username, message].join(":");
-  
-  const div_wrapper = document.querySelector(".chat-container > .scroll-wrapper");
-  const ul_msg_list = div_wrapper.querySelector(".chat-msg-list");
-  const li_msg_item = ul_msg_list.appendChild(document.createElement("li"));
-  
-  li_msg_item.appendChild(document.createTextNode(text));
-  
-  document.querySelector(".scroll-wrapper").scrollTop = div_wrapper.scrollHeight;
-});
-
-// Emit Event, Emit message data.
-const send_message = ( data )=>{
-  socket.emit("message", data);
-}
-
-// Find Message Form Element
-const message_form = document.getElementById("message_form");
-
-// Send Message Handler
-const handle_send_message = ( event )=>{
-  event.preventDefault();
-    
-  // Get Input Message
-  const input_message = event.target.querySelector('input[name="message"]');
-  const text_message = input_message.value;
-
-  // Send Message Data
-  send_message({
-    username: "jojo",
-    message: text_message
+  socket.emit("message", {
+    username: "guest", // 나중에 사용자 이름 받을 수 있음
+    message: msg
   });
 
-  // Initialize
-  input_message.value = "";
-}
-message_form.addEventListener("submit", handle_send_message, false);
+  input.value = "";
+});
