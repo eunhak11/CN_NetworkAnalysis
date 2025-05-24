@@ -1,18 +1,383 @@
 <!DOCTYPE html>
 <html lang="ko">
   <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="../static/css/style.css" />
     <title>끝말잇기 게임</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <!-- Socket.IO 클라이언트 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
   </head>
   <body>
-    <div class="chat-container">
-      <ul class="chat-msg-list"></ul>
-      <form id="message_form">
-        <input type="text" name="message" placeholder="단어 입력">
-        <button type="submit">보내기</button>
-      </form>
+    <div class="container">
+      <div class="header">
+        <h2>끝말잇기 게임</h2>
+      </div>
+
+      <div class="connection-panel">
+        <input
+          type="text"
+          id="serverInput"
+          placeholder="서버 주소 (예: 114.203.164.65)"
+          value="114.203.164.65"
+        />
+        <input
+          type="text"
+          id="portInput"
+          placeholder="포트 (예: 12000)"
+          value="12000"
+        />
+        <input
+          type="text"
+          id="nicknameInput"
+          placeholder="닉네임"
+          value="플레이어"
+        />
+        <button id="connectBtn">연결하기</button>
+      </div>
+
+      <div class="game-status">
+        <div class="status" id="gameStatus">상태: 연결 대기중</div>
+        <div class="timer" id="timer">남은 시간: 10초</div>
+      </div>
+
+      <div class="chat-container" id="chatContainer">
+        <div class="system-message">서버에 연결하여 게임을 시작하세요.</div>
+      </div>
+
+      <div class="input-area">
+        <input
+          type="text"
+          id="wordInput"
+          placeholder="단어를 입력하세요..."
+          disabled
+        />
+        <button id="sendBtn" disabled>보내기</button>
+        <button id="surrenderBtn" disabled>기권</button>
+      </div>
     </div>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <script>
+      // DOM 요소
+      const serverInput = document.getElementById('serverInput');
+      const portInput = document.getElementById('portInput');
+      const nicknameInput = document.getElementById('nicknameInput');
+      const connectBtn = document.getElementById('connectBtn');
+      const gameStatus = document.getElementById('gameStatus');
+      const timer = document.getElementById('timer');
+      const chatContainer = document.getElementById('chatContainer');
+      const wordInput = document.getElementById('wordInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const surrenderBtn = document.getElementById('surrenderBtn');
+
+      // 게임 상태 변수
+      let socket = null;
+      let myTurn = false;
+      let gameOver = false;
+      let timerInterval = null;
+      let timeLeft = 10;
+      let lastWord = '';
+      let nickname = '';
+
+      // 연결 버튼 이벤트
+      connectBtn.addEventListener('click', connectToServer);
+
+      // 단어 전송 이벤트
+      sendBtn.addEventListener('click', sendWord);
+      wordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendWord();
+      });
+
+      // 기권 버튼 이벤트
+      surrenderBtn.addEventListener('click', surrender);
+
+      // 서버 연결 함수
+      function connectToServer() {
+        const server = serverInput.value.trim();
+        const port = portInput.value.trim();
+        nickname = nicknameInput.value.trim() || '플레이어';
+
+        if (!server || !port) {
+          addSystemMessage('서버 주소와 포트를 입력해주세요.');
+          return;
+        }
+
+        try {
+          // Socket.IO를 사용한 연결
+          socket = io(`http://${server}:${port}`, {
+            reconnection: false,
+            transports: ['websocket'],
+          });
+
+          connectBtn.disabled = true;
+          connectBtn.textContent = '연결 중...';
+          addSystemMessage('서버에 연결 중입니다...');
+
+          // Socket.IO 이벤트 핸들러
+          socket.on('connect', () => {
+            addSystemMessage('서버에 연결되었습니다!');
+            gameStatus.textContent = '상태: 게임 대기 중';
+            connectBtn.textContent = '연결됨';
+
+            // 닉네임 전송
+            socket.emit('join', { nickname: nickname });
+
+            // 입력 필드 활성화
+            enableGameControls(true);
+          });
+
+          socket.on('message', (message) => {
+            handleServerMessage(message);
+          });
+
+          socket.on('disconnect', () => {
+            addSystemMessage('서버와의 연결이 종료되었습니다.');
+            gameOver = true;
+            resetGame();
+          });
+
+          socket.on('connect_error', (error) => {
+            addSystemMessage(`연결 오류: ${error.message}`);
+            resetGame();
+          });
+        } catch (error) {
+          addSystemMessage(`연결 실패: ${error.message}`);
+          resetGame();
+        }
+      }
+
+      // 서버 메시지 처리
+      function handleServerMessage(message) {
+        switch (message.type) {
+          case 'system':
+            addSystemMessage(message.text);
+            break;
+
+          case 'start':
+            addSystemMessage('게임이 시작되었습니다!');
+            // 시작 플레이어 설정
+            if (message.firstPlayer === nickname) {
+              setMyTurn(true);
+              addSystemMessage(`당신의 차례입니다. 첫 단어를 입력하세요.`);
+            } else {
+              setMyTurn(false);
+              addSystemMessage(`${message.firstPlayer}님의 차례입니다.`);
+            }
+            break;
+
+          case 'word':
+            // 상대방이 보낸 단어
+            addMessage(
+              message.nickname,
+              message.word,
+              message.nickname === nickname
+            );
+            lastWord = message.word;
+
+            // 내 턴인지 확인
+            if (message.nickname !== nickname) {
+              setMyTurn(true);
+            }
+            break;
+
+          case 'turn':
+            // 내 턴 설정
+            setMyTurn(true);
+            addSystemMessage(
+              `당신의 차례입니다. '${
+                lastWord ? lastWord.charAt(lastWord.length - 1) : ''
+              }'로 시작하는 단어를 입력하세요.`
+            );
+            break;
+
+          case 'invalid':
+            // 유효하지 않은 단어
+            addSystemMessage(`규칙 위반: ${message.reason}`);
+            setMyTurn(true); // 다시 내 차례로
+            break;
+
+          case 'victory':
+            // 게임 승리
+            addSystemMessage(
+              `축하합니다! 승리하셨습니다! 이유: ${message.reason}`
+            );
+            gameOver = true;
+            resetGame();
+            break;
+
+          case 'defeat':
+            // 게임 패배
+            addSystemMessage(`패배하셨습니다. 이유: ${message.reason}`);
+            gameOver = true;
+            resetGame();
+            break;
+
+          case 'error':
+            // 오류 메시지
+            addSystemMessage(`오류: ${message.message}`);
+            break;
+        }
+      }
+
+      // 내 차례 설정
+      function setMyTurn(turn) {
+        myTurn = turn;
+
+        if (myTurn) {
+          gameStatus.textContent = '상태: 내 차례';
+          wordInput.disabled = false;
+          sendBtn.disabled = false;
+          wordInput.focus();
+          startTimer();
+        } else {
+          gameStatus.textContent = '상태: 상대방 차례';
+          wordInput.disabled = true;
+          sendBtn.disabled = true;
+          stopTimer();
+        }
+      }
+
+      // 단어 전송
+      function sendWord() {
+        if (!myTurn || gameOver) return;
+
+        const word = wordInput.value.trim();
+        if (!word) return;
+
+        // 끝말잇기 규칙 검사 (클라이언트 측)
+        if (lastWord && lastWord.length > 0) {
+          const lastChar = lastWord.charAt(lastWord.length - 1);
+          const firstChar = word.charAt(0);
+
+          if (lastChar !== firstChar) {
+            addSystemMessage(
+              `규칙 위반: '${lastChar}'(으)로 시작하는 단어를 입력해야 합니다.`
+            );
+            return;
+          }
+        }
+
+        try {
+          // 서버에 단어 전송
+          if (socket && socket.connected) {
+            socket.emit('word', word);
+            wordInput.value = '';
+            setMyTurn(false);
+          } else {
+            addSystemMessage('서버에 연결되어 있지 않습니다.');
+          }
+        } catch (error) {
+          addSystemMessage(`전송 오류: ${error.message}`);
+        }
+      }
+
+      // 기권
+      function surrender() {
+        if (gameOver) return;
+
+        try {
+          if (socket && socket.connected) {
+            socket.emit('surrender');
+            addSystemMessage('게임을 기권하셨습니다.');
+          }
+        } catch (error) {
+          addSystemMessage(`기권 오류: ${error.message}`);
+        }
+      }
+
+      // 메시지 추가
+      function addMessage(sender, text, isMine) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = isMine
+          ? 'message my-message'
+          : 'message other-message';
+
+        messageDiv.innerHTML = `
+                <div class="word">${text}</div>
+                <div class="info">${sender}</div>
+            `;
+
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      // 시스템 메시지 추가
+      function addSystemMessage(text) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'system-message';
+        messageDiv.textContent = text;
+
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      // 채팅창 스크롤
+      function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      // 타이머 시작
+      function startTimer() {
+        stopTimer();
+        timeLeft = 10;
+        timer.textContent = `남은 시간: ${timeLeft}초`;
+
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          timer.textContent = `남은 시간: ${timeLeft}초`;
+
+          if (timeLeft <= 0) {
+            stopTimer();
+            if (myTurn && !gameOver) {
+              surrender();
+            }
+          }
+        }, 1000);
+      }
+
+      // 타이머 정지
+      function stopTimer() {
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+      }
+
+      // 게임 초기화
+      function resetGame() {
+        stopTimer();
+        myTurn = false;
+
+        if (!gameOver) {
+          return;
+        }
+
+        connectBtn.disabled = false;
+        connectBtn.textContent = '연결하기';
+        gameStatus.textContent = '상태: 연결 대기중';
+        timer.textContent = '남은 시간: 10초';
+
+        enableGameControls(false);
+
+        // 소켓 연결 종료
+        if (socket) {
+          socket.disconnect();
+          socket = null;
+        }
+
+        gameOver = false;
+      }
+
+      // 게임 컨트롤 활성화/비활성화
+      function enableGameControls(enabled) {
+        wordInput.disabled = !enabled || !myTurn;
+        sendBtn.disabled = !enabled || !myTurn;
+        surrenderBtn.disabled = !enabled;
+
+        if (!enabled) {
+          wordInput.value = '';
+        }
+      }
+    </script>
   </body>
 </html>

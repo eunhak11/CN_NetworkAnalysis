@@ -1,32 +1,197 @@
-html, body { 
+/* 기본 스타일 */
+body {
+  font-family: 'Nanum Gothic', 'Malgun Gothic', sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
   padding: 0;
-  margin: 0;
-  height: 100%;
-  width: 100%
 }
+
+.container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eee;
+}
+
+.header h2 {
+  color: #333;
+  margin: 0;
+}
+
+/* 연결 패널 */
+.connection-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.connection-panel input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.connection-panel button {
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.connection-panel button:hover {
+  background-color: #45a049;
+}
+
+.connection-panel button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* 게임 상태 */
+.game-status {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f8f8f8;
+  border-radius: 5px;
+}
+
+.status, .timer {
+  font-weight: bold;
+}
+
+.timer {
+  color: #e91e63;
+}
+
+/* 채팅 컨테이너 */
 .chat-container {
-  position: relative; 
-  height: 350px;
-  padding: 2px;
+  height: 300px;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  overflow-y: auto;
+  background-color: #fafafa;
 }
-.scroll-wrapper { 
-  position: relative; 
-  height: 100%; 
-  box-sizing: border-box; 
-  border: 1px solid darkgrey;
-  overflow-y: scroll;
+
+/* 메시지 스타일 */
+.message {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  max-width: 80%;
+  position: relative;
 }
-.chat-msg-list { 
-  position: absolute; 
-  bottom: 0; 
-  margin: 0;
-  list-style: none; 
-  padding: 1px; 
-  width: 100%; 
-  max-height: 100%; 
-  box-sizing: border-box; 
+
+.my-message {
+  background-color: #dcf8c6;
+  margin-left: auto;
 }
-.chat-msg-item { 
-  padding: 3px 3px; 
-  overflow-wrap: break-word;
+
+.other-message {
+  background-color: #f1f0f0;
+  margin-right: auto;
+}
+
+.system-message {
+  text-align: center;
+  padding: 5px;
+  margin: 10px 0;
+  color: #666;
+  font-style: italic;
+}
+
+.message .word {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.message .info {
+  font-size: 12px;
+  color: #777;
+  text-align: right;
+  margin-top: 5px;
+}
+
+/* 입력 영역 */
+.input-area {
+  display: flex;
+  gap: 10px;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.input-area button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#sendBtn {
+  background-color: #2196F3;
+  color: white;
+}
+
+#sendBtn:hover {
+  background-color: #0b7dda;
+}
+
+#sendBtn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+#surrenderBtn {
+  background-color: #f44336;
+  color: white;
+}
+
+#surrenderBtn:hover {
+  background-color: #d32f2f;
+}
+
+#surrenderBtn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 600px) {
+  .container {
+      margin: 10px;
+      padding: 10px;
+  }
+  
+  .connection-panel {
+      flex-direction: column;
+  }
+  
+  .chat-container {
+      height: 250px;
+  }
 }
