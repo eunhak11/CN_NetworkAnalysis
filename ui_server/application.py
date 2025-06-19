@@ -10,11 +10,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# SMTP 서버 설정 (Naver)
-SMTP_SERVER = 'smtp.naver.com'
+# SMTP 서버 설정
+SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587
-SMTP_USER = 'brianlee1111@naver.com'
-SMTP_PASSWORD = 'H1Z4YLR3K47S'
+SMTP_USER = 'eunhakdev@gmail.com'
+SMTP_PASSWORD = 'ozuchisccifxnkto'
 
 # 게임 상태 관리
 game_state = {
