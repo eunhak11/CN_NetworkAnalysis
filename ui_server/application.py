@@ -204,6 +204,7 @@ def on_join(data):
         emit('message', {'type': 'error', 'message': '이미 두 명의 플레이어가 있습니다.'})
         return
 
+    # 플레이어 정보 저장
     game_state['players'].append(sid)
     game_state['nicknames'][sid] = nickname
     game_state['emails'][sid] = email
@@ -319,7 +320,7 @@ def get_next_player(current_player):
         if player != current_player:
             return player
 
-    return current_player  # 예상치 못한 상황
+    return current_player
 
 
 # 기권 처리 함수
