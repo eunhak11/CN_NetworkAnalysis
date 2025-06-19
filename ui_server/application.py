@@ -5,6 +5,8 @@ import os
 import smtplib
 from email.message import EmailMessage
 import re
+from scapy.sendrecv import sr1
+from scapy.layers.inet import IP, ICMP
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -21,9 +23,10 @@ game_state = {
     'players': [],  # 플레이어 소켓ID 목록
     'nicknames': {},  # 소켓ID: 닉네임 매핑
     'emails': {},  # 소켓ID: 이메일 매핑
+    'network_info': {},  # 소켓ID: {ip, rtt} 매핑
     'current_turn': None,  # 현재 턴 (소켓ID)
     'last_word': '',  # 마지막으로 제출된 단어
-    'used_words': set(),  # 사용된 단어 집합
+    'used_words': [],  # 단어 기록 (입력 순서 유지, 중복 체크)
     'game_started': False  # 게임 시작 여부
 }
 
@@ -39,7 +42,6 @@ def send_game_result_email(to_email, result, details):
         f"🗃️ 단어 기록: {', '.join(details.get('word_history', []))}\n"
         f"\n✨플레이해 주셔서 감사합니다!✨"
     )
-
     msg['Subject'] = f'끝말잇기 게임 결과 - {result}'
     msg['From'] = SMTP_USER
     msg['To'] = to_email
@@ -53,6 +55,20 @@ def send_game_result_email(to_email, result, details):
     except Exception as e:
         print(f"이메일 전송 실패: {e}")
         return False, f"이메일 전송 실패: {str(e)}"
+
+
+# ICMP Ping 전송 함수
+def send_icmp_ping(target_ip, timeout=2):
+    try:
+        packet = IP(dst=target_ip) / ICMP()
+        response = sr1(packet, timeout=timeout, verbose=False)
+        if response:
+            rtt = (response.time - packet.sent_time) * 1000  # ms 단위
+            return True, rtt
+        return False, None
+    except Exception as e:
+        print(f"ICMP 전송 오류: {e}")
+        return False, None
 
 
 # 기본 라우트 - 메인 페이지
@@ -79,6 +95,21 @@ def on_connect():
     sid = request.sid
     print(f'클라이언트 연결됨: {sid}')
 
+    client_ip = request.remote_addr
+    success, rtt = send_icmp_ping(client_ip)
+    if success and rtt is not None:
+        game_state['network_info'][sid] = {'ip': client_ip, 'rtt': rtt}
+        emit('message', {
+            'type': 'system',
+            'text': f'네트워크 정보: IP={client_ip}, RTT={rtt:.2f}ms'
+        }, room=sid)
+    else:
+        game_state['network_info'][sid] = {'ip': client_ip, 'rtt': None}
+        emit('message', {
+            'type': 'system',
+            'text': f'네트워크 정보: IP={client_ip}, RTT 측정 실패'
+        })
+
     if len(game_state['players']) >= 2 and game_state['game_started']:
         emit('message', {'type': 'error', 'message': '이미 게임이 진행 중입니다.'})
         return
@@ -103,8 +134,11 @@ def on_disconnect():
             del game_state['nicknames'][sid]
         if sid in game_state['emails']:
             del game_state['emails'][sid]
+        if sid in game_state['network_info']:
+            del game_state['network_info'][sid]
 
         if game_state['game_started'] and len(game_state['players']) > 0:
+            remaining_player = game_state['players'][0]
             emit('message', {
                 'type': 'victory',
                 'reason': f'{nickname}님이 게임을 나갔습니다.'
@@ -118,7 +152,7 @@ def on_disconnect():
                     {
                         'last_word': game_state['last_word'],
                         'opponent': opponent_nickname,
-                        'word_history': list(game_state['used_words'])
+                        'word_history': game_state['used_words']  # list 사용
                     }
                 )
                 emit('message', {
@@ -134,7 +168,7 @@ def on_disconnect():
                     {
                         'last_word': game_state['last_word'],
                         'opponent': nickname,
-                        'word_history': list(game_state['used_words'])
+                        'word_history': game_state['used_words']  # list 사용
                     }
                 )
                 emit('message', {
@@ -146,7 +180,7 @@ def on_disconnect():
             game_state['game_started'] = False
             game_state['current_turn'] = None
             game_state['last_word'] = ''
-            game_state['used_words'] = set()
+            game_state['used_words'] = []  # 초기화 시 빈 리스트
 
 
 # 게임 참가 이벤트
@@ -170,7 +204,6 @@ def on_join(data):
         emit('message', {'type': 'error', 'message': '이미 두 명의 플레이어가 있습니다.'})
         return
 
-    # 플레이어 정보 저장
     game_state['players'].append(sid)
     game_state['nicknames'][sid] = nickname
     game_state['emails'][sid] = email
@@ -199,10 +232,12 @@ def on_word(word):
         emit('message', {'type': 'error', 'message': '당신의 차례가 아닙니다.'})
         return
 
+    # "GiveUp" 메시지 처리 (기권)
     if word == "GiveUp":
         handle_surrender(sid)
         return
 
+    # 끝말잇기 규칙 검사
     if game_state['last_word']:
         last_char = game_state['last_word'][-1]
         first_char = word[0] if word else ''
@@ -214,27 +249,26 @@ def on_word(word):
             })
             return
 
-    if word in game_state['used_words']:
-        emit('message', {
-            'type': 'invalid',
-            'reason': '이미 사용된 단어입니다.'
-        })
-        return
+    # 중복 단어 체크 후 추가
+    if word not in game_state['used_words']:  # 중복 방지
+        game_state['used_words'].append(word)
 
     game_state['last_word'] = word
-    game_state['used_words'].add(word)
 
     nickname = game_state['nicknames'].get(sid, '알 수 없음')
 
+    # 모든 플레이어에게 단어 전송
     emit('message', {
         'type': 'word',
         'nickname': nickname,
         'word': word
     }, broadcast=True)
 
+    # 턴 변경
     next_player = get_next_player(sid)
     game_state['current_turn'] = next_player
 
+    # 다음 플레이어에게 턴 알림
     emit('message', {'type': 'turn'}, room=next_player)
 
 
@@ -250,15 +284,19 @@ def start_game():
         return
 
     game_state['game_started'] = True
-    game_state['used_words'] = set()
+    game_state['used_words'] = []  # 게임 시작 시 빈 리스트로 초기화
 
+    # 무작위로 시작 플레이어 선택
     first_player = random.choice(game_state['players'])
     game_state['current_turn'] = first_player
 
+    # 시작 단어 선택 (첫 플레이어가 자유롭게 선택)
     game_state['last_word'] = ''
 
+    # 각 플레이어에게 게임 시작 알림
     first_player_nickname = game_state['nicknames'].get(first_player, '알 수 없음')
 
+    # 모든 플레이어에게 게임 시작 및 첫 플레이어 알림
     for player in game_state['players']:
         emit('message', {
             'type': 'start',
@@ -266,6 +304,7 @@ def start_game():
             'startWord': ''
         }, room=player)
 
+    # 첫 번째 플레이어에게 턴 부여
     emit('message', {'type': 'turn'}, room=first_player)
 
 
@@ -275,11 +314,12 @@ def get_next_player(current_player):
     if len(players) <= 1:
         return current_player
 
+    # 현재 플레이어 이외의 플레이어 선택
     for player in players:
         if player != current_player:
             return player
 
-    return current_player
+    return current_player  # 예상치 못한 상황
 
 
 # 기권 처리 함수
@@ -290,6 +330,7 @@ def handle_surrender(sid):
     nickname = game_state['nicknames'].get(sid, '알 수 없음')
     to_email = game_state['emails'].get(sid)
 
+    # 다른 플레이어 찾기
     other_player = None
     for player in game_state['players']:
         if player != sid:
@@ -297,6 +338,7 @@ def handle_surrender(sid):
             break
 
     if other_player:
+        # 승리 메시지 전송
         emit('message', {
             'type': 'victory',
             'reason': f'{nickname}님이 기권했습니다.'
@@ -310,7 +352,7 @@ def handle_surrender(sid):
                 {
                     'last_word': game_state['last_word'],
                     'opponent': nickname,
-                    'word_history': list(game_state['used_words'])
+                    'word_history': game_state['used_words']  # list 사용
                 }
             )
             emit('message', {
@@ -326,7 +368,7 @@ def handle_surrender(sid):
             {
                 'last_word': game_state['last_word'],
                 'opponent': game_state['nicknames'].get(other_player, '알 수 없음'),
-                'word_history': list(game_state['used_words'])
+                'word_history': game_state['used_words']  # list 사용
             }
         )
         emit('message', {
@@ -342,14 +384,16 @@ def handle_surrender(sid):
     game_state['game_started'] = False
     game_state['current_turn'] = None
     game_state['last_word'] = ''
-    game_state['used_words'] = set()
+    game_state['used_words'] = []  # 초기화 시 빈 리스트
 
 
 # 서버 시작
 if __name__ == '__main__':
+    # 'templates' 디렉토리가 없으면 생성
     if not os.path.exists('templates'):
         os.makedirs('templates')
 
+    # 'static/css' 디렉토리가 없으면 생성
     if not os.path.exists('static/css'):
         os.makedirs('static/css')
 
