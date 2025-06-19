@@ -33,6 +33,11 @@
           placeholder="닉네임"
           value="플레이어"
         />
+        <input
+          type="email"
+          id="emailInput"
+          placeholder="이메일 (예: user@example.com)"
+        />
         <button id="connectBtn">연결하기</button>
       </div>
 
@@ -62,6 +67,7 @@
       const serverInput = document.getElementById('serverInput');
       const portInput = document.getElementById('portInput');
       const nicknameInput = document.getElementById('nicknameInput');
+      const emailInput = document.getElementById('emailInput');
       const connectBtn = document.getElementById('connectBtn');
       const gameStatus = document.getElementById('gameStatus');
       const timer = document.getElementById('timer');
@@ -96,9 +102,17 @@
         const server = serverInput.value.trim();
         const port = portInput.value.trim();
         nickname = nicknameInput.value.trim() || '플레이어';
+        const email = emailInput.value.trim();
 
         if (!server || !port) {
           addSystemMessage('서버 주소와 포트를 입력해주세요.');
+          return;
+        }
+
+        // 이메일 유효성 검사
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
+          addSystemMessage('유효한 이메일 주소를 입력해주세요.');
           return;
         }
 
@@ -119,8 +133,8 @@
             gameStatus.textContent = '상태: 게임 대기 중';
             connectBtn.textContent = '연결됨';
 
-            // 닉네임 전송
-            socket.emit('join', { nickname: nickname });
+            // 닉네임과 이메일 전송
+            socket.emit('join', { nickname: nickname, email: email });
 
             // 입력 필드 활성화
             enableGameControls(true);
@@ -184,9 +198,7 @@
             // 내 턴 설정
             setMyTurn(true);
             addSystemMessage(
-              `당신의 차례입니다. '${
-                lastWord ? lastWord.charAt(lastWord.length - 1) : ''
-              }'로 시작하는 단어를 입력하세요.`
+              `당신의 차례입니다. '${lastWord ? lastWord.charAt(lastWord.length - 1) : ''}'로 시작하는 단어를 입력하세요.`
             );
             break;
 
@@ -215,6 +227,11 @@
           case 'error':
             // 오류 메시지
             addSystemMessage(`오류: ${message.message}`);
+            break;
+
+          case 'email_status':
+            // 이메일 전송 상태
+            addSystemMessage(message.message);
             break;
         }
       }
